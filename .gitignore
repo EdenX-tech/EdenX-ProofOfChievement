@@ -1,6 +1,6 @@
-framework
+.DS_store
 .aptos
-tests
-scripts
 .idea
+framework
 Move.toml
+build

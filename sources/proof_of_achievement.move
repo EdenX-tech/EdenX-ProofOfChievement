@@ -11,6 +11,7 @@ module edenx::proof_of_achievement {
     use aptos_std::table::Table;
     use aptos_framework::account;
     use aptos_framework::resource_account;
+    use aptos_framework::timestamp;
 
     struct ModuleData has store {
         token_data_id: TokenDataId,
@@ -23,19 +24,33 @@ module edenx::proof_of_achievement {
         data: vector<ModuleData>
     }
 
+    struct SignInData has store {
+        sign_in_count: u64,
+        last_sign_in_time: u64,
+    }
+
+    struct SignInModule has key {
+        sign_in_data: Table<address, SignInData>,
+    }
+
     const ENOT_AUTHORIZED: u64 = 1;
     const ECOLLECTION_EXPIRED: u64 = 2;
     const EMINTING_DISABLED: u64 = 3;
     const ENOT_ELIGIBLE: u64 = 4;
     const EALREADY_MINTED: u64 = 5;
     const NONE_EXISTENT: u64 = 6;
+    const ONE_DAY_IN_SECONDS: u64 = 86400;
+    const EALREADY_SIGNED_IN: u64 = 8;
 
     fun init_module(resource_signer: &signer) {
         let resource_signer_cap = resource_account::retrieve_resource_account_cap(resource_signer, @sender);
         move_to(resource_signer, ModuleDataCollection{
             signer_cap: resource_signer_cap,
             data: vector::empty<ModuleData>()
-        })
+        });
+
+        let sign_in_data = table::new();
+        move_to(resource_signer, SignInModule { sign_in_data });
     }
 
     public entry fun create_OAT(
@@ -113,18 +128,26 @@ module edenx::proof_of_achievement {
         assert!(collection_index < vector::length(&module_data_collection.data), error::permission_denied(ENOT_AUTHORIZED));
         let module_data = vector::borrow_mut(&mut module_data_collection.data, collection_index);
 
-        assert!(table::contains(&module_data.users, receiver_address), error::permission_denied(NONE_EXISTENT));
+        //Temporary feature, cancel verification.
+        if (table::contains(&module_data.users, receiver_address)) {
+            assert!(module_data.minting_enabled, error::permission_denied(EMINTING_DISABLED));
+            assert!(is_user_eligible(module_data, receiver_address), error::permission_denied(ENOT_ELIGIBLE));
+        } else {
+            table::add(&mut module_data.users, receiver_address, true);
+        };
 
-        assert!(module_data.minting_enabled, error::permission_denied(EMINTING_DISABLED));
-        assert!(is_user_eligible(module_data, receiver_address), error::permission_denied(ENOT_ELIGIBLE));
+        // assert!(table::contains(&module_data.users, receiver_address), error::permission_denied(NONE_EXISTENT));
+        // assert!(module_data.minting_enabled, error::permission_denied(EMINTING_DISABLED));
+        // assert!(is_user_eligible(module_data, receiver_address), error::permission_denied(ENOT_ELIGIBLE));
 
         let resource_signer = account::create_signer_with_capability(&module_data_collection.signer_cap);
         let token_id = token::mint_token(&resource_signer, module_data.token_data_id, 1);
         token::direct_transfer(&resource_signer, receiver, token_id, 1);
+        update_user_mint_status(module_data, receiver_address)
     }
 
     fun update_user_mint_status(module_data: &mut ModuleData, user: address) {
-        assert!(!table::contains(&module_data.users, user), error::permission_denied(NONE_EXISTENT));
+        assert!(table::contains(&module_data.users, user), error::permission_denied(NONE_EXISTENT));
 
         table::upsert(&mut module_data.users, user, false)
     }
@@ -146,6 +169,41 @@ module edenx::proof_of_achievement {
         module_data.minting_enabled = minting_enabled;
     }
 
+    public entry fun sign_in(caller: &signer) acquires SignInModule {
+        let sign_in_module = borrow_global_mut<SignInModule>(@edenx);
+        let current_time = timestamp::now_seconds();
+
+        let address = signer::address_of(caller);
+
+        if (table::contains(&sign_in_module.sign_in_data, address)) {
+            let sign_in_data = table::borrow_mut(&mut sign_in_module.sign_in_data, address);
+            assert!(
+                (current_time - sign_in_data.last_sign_in_time) >= ONE_DAY_IN_SECONDS,
+                error::permission_denied(EALREADY_SIGNED_IN)
+            );
+
+            sign_in_data.sign_in_count = sign_in_data.sign_in_count + 1;
+            sign_in_data.last_sign_in_time = current_time;
+        } else {
+            let new_sign_in_data = SignInData {
+                sign_in_count: 1,
+                last_sign_in_time: current_time,
+            };
+            table::add(&mut sign_in_module.sign_in_data, address, new_sign_in_data);
+        }
+    }
+
+    #[view]
+    public fun get_sign_in_count(account: address): u64 acquires SignInModule {
+        let sign_in_module = borrow_global<SignInModule>(@edenx);
+        if (table::contains(&sign_in_module.sign_in_data, account)) {
+            let sign_in_data = table::borrow(&sign_in_module.sign_in_data, account);
+            sign_in_data.sign_in_count
+        } else {
+            0
+        }
+    }
+
     #[view]
     public fun get_all_module_data(): vector<token::TokenDataId> acquires ModuleDataCollection {
         let module_data_collection = borrow_global<ModuleDataCollection>(@edenx);
@@ -164,5 +222,4 @@ module edenx::proof_of_achievement {
 
         return  token_data_ids
     }
-
 }
