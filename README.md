@@ -1,6 +1,6 @@
-## EdenX-ProofOfChievement
+## EdenX-ProofOfAchievement
 
-EdenX-ProofOfChievement is the core on-chain feature developed on the Aptos blockchain to prove learning achievements. This contract is part of the EdenX ecosystem, providing functionality to create, manage, and mint On-Chain Achievement Tokens (OATs) as proof of learning success.
+EdenX-ProofOfAchievement is the core on-chain feature developed on the Aptos blockchain to prove learning achievements. This contract is part of the EdenX ecosystem, providing functionality to create, manage, and mint On-Chain Achievement Tokens (OATs) as proof of learning success.
 
 ### Key Features:
 1.	Creation of Resource and Admin Accounts  
@@ -20,4 +20,4 @@ EdenX-ProofOfChievement is the core on-chain feature developed on the Aptos bloc
 
 ### Usage
 
-The EdenX-ProofOfChievement contract focuses on combining learning with on-chain achievements and providing users with tangible rewards for their educational progress. Each step is securely managed via Aptos’s blockchain infrastructure and is overseen by both resource and admin accounts.
+The EdenX-ProofOfAchievement contract focuses on combining learning with on-chain achievements and providing users with tangible rewards for their educational progress. Each step is securely managed via Aptos’s blockchain infrastructure and is overseen by both resource and admin accounts.
